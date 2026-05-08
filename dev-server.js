@@ -4,7 +4,7 @@ const path = require("path");
 
 const root = __dirname;
 const port = 5173;
-const apiOrigin = "http://127.0.0.1:8000";
+const apiOrigin = "http://3.36.54.178:8000";
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",

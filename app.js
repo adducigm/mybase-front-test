@@ -1,6 +1,6 @@
 const gameList = document.querySelector("#gameList");
 const isLocalServer = location.protocol.startsWith("http") && location.port === "5173";
-const apiBase = isLocalServer ? "" : "http://127.0.0.1:8000";
+const apiBase = isLocalServer ? "" : "http://3.36.54.178:8000";
 let todayGames = [];
 const detailCache = new Map();
 const compareView = {
