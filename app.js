@@ -21,6 +21,19 @@ const teamFallbackClass = {
   NC: "nc",
 };
 
+const teamColors = {
+  HT: ["#f46b72", "#8f1118"],
+  LT: ["#4f6f9f", "#03193d"],
+  KT: ["#858c96", "#171a1f"],
+  WO: ["#b84a72", "#4f0d25"],
+  LG: ["#e47796", "#8d1237"],
+  HH: ["#ffb06a", "#c94908"],
+  SK: ["#f36c71", "#981117"],
+  OB: ["#6577bd", "#111c4a"],
+  SS: ["#6aa4ee", "#073f95"],
+  NC: ["#5da0d2", "#123c66"],
+};
+
 init();
 window.addEventListener("hashchange", route);
 gameList.addEventListener("click", handleGameListClick);
@@ -34,7 +47,7 @@ async function init() {
     }
 
     const data = await response.json();
-    todayGames = data.games ?? [];
+    todayGames = await hydrateLiveStatuses(data.games ?? []);
     route();
   } catch (error) {
     renderError(error);
@@ -110,14 +123,21 @@ function renderGameCard(game) {
   const homePitcher = game.homeStartingPitcher ?? {};
   const status = getGameStatus(game);
   const isFinal = game.gameState === "FINAL";
+  const isLive = game.gameState === "LIVE";
   const canOpenDetail = game.gameState === "SCHEDULED";
+  const cardStyle = canOpenDetail ? ` style="${getScheduledCardStyle(awayTeam, homeTeam)}"` : "";
+
+  if (isLive) {
+    return renderLiveGameCard(game, awayTeam, homeTeam, status);
+  }
 
   return `
     <article
-      class="game-card ${isFinal ? "final-card" : ""} ${canOpenDetail ? "is-openable" : "is-static"}"
+      class="game-card ${isFinal ? "final-card" : ""} ${canOpenDetail ? "scheduled-card is-openable" : "is-static"}"
       data-game-id="${escapeAttribute(game.kboGameId)}"
       data-can-open="${canOpenDetail ? "true" : "false"}"
       ${canOpenDetail ? 'role="button" tabindex="0"' : ""}
+      ${cardStyle}
     >
       <div class="game-meta">
         <div class="meta-left">
@@ -130,15 +150,153 @@ function renderGameCard(game) {
           ? renderFinalResult(game, awayTeam, homeTeam)
           : `
             <div class="matchup">
-              ${renderTeam(awayTeam)}
+              ${renderTeam(awayTeam, "away")}
               ${renderMatchCenter(game, false)}
-              ${renderTeam(homeTeam)}
+              ${renderTeam(homeTeam, "home")}
             </div>
             ${renderStartingPitchers(awayPitcher, homePitcher, awayTeam, homeTeam)}
           `
       }
     </article>
   `;
+}
+
+function renderLiveGameCard(game, awayTeam, homeTeam, status) {
+  const liveGame = applyLiveStatusToGame(game);
+  const state = game.liveStatus?.gameState ?? {};
+  const count = state.count ?? {};
+  const pitcher = game.liveStatus?.currentPitcher ?? null;
+  const batter = game.liveStatus?.currentBatter ?? null;
+
+  return `
+    <article class="game-card live-game-card is-static" data-game-id="${escapeAttribute(game.kboGameId)}" data-can-open="false">
+      <div class="live-game-top">
+        ${renderLiveTeamBadge(awayTeam, liveGame.awayScore, "away", getScoreResultClass(liveGame.awayScore, liveGame.homeScore))}
+        <div class="live-game-state">
+          <span class="status-text ${status.className}">${escapeHtml(status.label)}</span>
+          <strong>${escapeHtml(formatLiveInning(state))}</strong>
+          <small>${escapeHtml(formatStadium(game.stadium))} · ${escapeHtml(game.gameTime ?? "-")}</small>
+        </div>
+        ${renderLiveTeamBadge(homeTeam, liveGame.homeScore, "home", getScoreResultClass(liveGame.homeScore, liveGame.awayScore))}
+      </div>
+      <div class="live-ballpark">
+        <div class="field-wall"></div>
+        <div class="outfield"></div>
+        <div class="infield"></div>
+        <div class="base-path"></div>
+        ${renderLiveFieldBase("second", "2루", state.runners?.second)}
+        ${renderLiveFieldBase("third", "3루", state.runners?.third)}
+        ${renderLiveFieldBase("first", "1루", state.runners?.first)}
+        ${renderLiveFieldPlayer("pitcher", "", pitcher)}
+        ${renderLiveFieldPlayer("batter", "", batter)}
+        <div class="live-count-board">
+          ${renderCountLights("B", count.balls, 3)}
+          ${renderCountLights("S", count.strikes, 2)}
+          ${renderCountLights("O", count.outs, 2)}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderCountLights(label, value, max) {
+  const count = Number.isFinite(Number(value)) ? Number(value) : 0;
+
+  return `
+    <div class="count-light-row">
+      <span>${escapeHtml(label)}</span>
+      <div>
+        ${Array.from({ length: max }, (_, index) => `<i class="${index < count ? "on" : ""}"></i>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderLiveTeamBadge(team, score, side, scoreClass = "") {
+  return `
+    <div class="live-team-badge ${side}">
+      ${renderLogo(team)}
+      <strong class="${scoreClass}">${escapeHtml(score ?? "-")}</strong>
+    </div>
+  `;
+}
+
+function renderLiveFieldPlayer(role, label, player) {
+  const imageUrl = getLivePlayerImageUrl(player);
+  const name = player?.playerName ?? "-";
+
+  return `
+    <div class="field-player field-${role}">
+      ${imageUrl ? `<img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(name)}" />` : '<span class="field-player-empty"></span>'}
+      ${label ? `<small>${escapeHtml(label)}</small>` : ""}
+      <strong>${escapeHtml(name)}</strong>
+    </div>
+  `;
+}
+
+function renderLiveFieldBase(base, label, runner) {
+  const imageUrl = getLivePlayerImageUrl(runner);
+  const occupiedClass = runner?.occupied ? " occupied" : "";
+  const name = runner?.playerName ?? label;
+
+  return `
+    <div class="field-base ${base}${occupiedClass}" title="${escapeAttribute(name)}">
+      ${runner?.occupied && imageUrl ? `<img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(name)}" />` : ""}
+    </div>
+  `;
+}
+
+async function hydrateLiveStatuses(games) {
+  const liveGames = games.filter((game) => game.gameState === "LIVE" && game.kboGameId);
+
+  if (!liveGames.length) {
+    return games;
+  }
+
+  const statuses = await Promise.all(
+    liveGames.map(async (game) => [game.kboGameId, await fetchLiveStatus(game.kboGameId)]),
+  );
+  const statusByGameId = new Map(statuses);
+
+  return games.map((game) => ({
+    ...game,
+    liveStatus: statusByGameId.get(game.kboGameId) ?? game.liveStatus ?? null,
+  }));
+}
+
+async function fetchLiveStatus(gameId) {
+  try {
+    const response = await fetch(`${apiBase}/api/v1/kbo/games/${encodeURIComponent(gameId)}/live/status`);
+    if (!response.ok) {
+      return null;
+    }
+
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
+function applyLiveStatusToGame(game) {
+  const state = game.liveStatus?.gameState ?? {};
+
+  return {
+    ...game,
+    awayScore: state.awayScore ?? game.awayScore,
+    homeScore: state.homeScore ?? game.homeScore,
+  };
+}
+
+function getScheduledCardStyle(awayTeam, homeTeam) {
+  const awayColors = teamColors[awayTeam.key] ?? ["#4f5965", "#151a20"];
+  const homeColors = teamColors[homeTeam.key] ?? ["#4f5965", "#151a20"];
+
+  return [
+    `--away-primary: ${awayColors[0]}`,
+    `--away-secondary: ${awayColors[1]}`,
+    `--home-primary: ${homeColors[0]}`,
+    `--home-secondary: ${homeColors[1]}`,
+  ].join("; ");
 }
 
 async function renderGameDetail(game) {
@@ -275,14 +433,21 @@ function renderDetailView(game, awayTeam, homeTeam, awayPitcher, homePitcher, li
         </div>
         ${renderPitcherCompareBody(awayPitcher, homePitcher)}
       </section>
-      ${renderLineupSection(lineup)}
+      ${renderLineupSection(lineup, game)}
     </article>
   `;
 }
 
-function renderLineupSection(lineup) {
+function renderLineupSection(lineup, game) {
   if (!lineup?.away?.players?.length && !lineup?.home?.players?.length) {
-    return "";
+    return `
+      <section class="compare-board lineup-board">
+        <div class="section-head">
+          <div class="section-title">라인업</div>
+        </div>
+        <div class="lineup-empty">라인업 등록 전입니다</div>
+      </section>
+    `;
   }
 
   const awayPlayers = lineup?.away?.players ?? [];
@@ -294,26 +459,12 @@ function renderLineupSection(lineup) {
       <div class="section-head">
         <div class="section-title">라인업</div>
       </div>
-      <div class="lineup-teams">
-        ${renderLineupTeamHeader(lineup.away?.team)}
-        <span>vs</span>
-        ${renderLineupTeamHeader(lineup.home?.team)}
-      </div>
       <div class="lineup-rows">
         ${Array.from({ length: maxRows }, (_, index) =>
           renderLineupRow(awayPlayers[index], homePlayers[index], index + 1),
         ).join("")}
       </div>
     </section>
-  `;
-}
-
-function renderLineupTeamHeader(team) {
-  return `
-    <div class="lineup-team">
-      ${renderLogo(team ?? {})}
-      <strong>${escapeHtml(team?.name ?? "-")}</strong>
-    </div>
   `;
 }
 
@@ -559,13 +710,27 @@ function getPitcherRecord(pitcher) {
   return `${season.wins ?? pitcher?.wins ?? "-"}승 ${season.losses ?? pitcher?.losses ?? "-"}패`;
 }
 
-function renderMatchCenter(game, isFinal) {
+function renderMatchCenter(game, isFinal, liveStatus = null) {
   if (!isFinal) {
     return `<span class="versus">vs</span>`;
   }
 
   const awayScoreClass = getScoreResultClass(game.awayScore, game.homeScore);
   const homeScoreClass = getScoreResultClass(game.homeScore, game.awayScore);
+
+  if (liveStatus) {
+    return `
+      <div class="live-score-center" aria-label="실시간 스코어">
+        <span class="live-score-inning">${escapeHtml(formatLiveInning(liveStatus.gameState ?? {}))}</span>
+        <div class="score-center">
+          <strong class="${awayScoreClass}">${escapeHtml(game.awayScore ?? "-")}</strong>
+          <span>:</span>
+          <strong class="${homeScoreClass}">${escapeHtml(game.homeScore ?? "-")}</strong>
+        </div>
+        ${renderBaseDiamond(liveStatus.gameState?.runners)}
+      </div>
+    `;
+  }
 
   return `
     <div class="score-center" aria-label="최종 스코어">
@@ -619,6 +784,95 @@ function renderStartingPitchers(awayPitcher, homePitcher, awayTeam, homeTeam) {
       ${renderPitcher(homePitcher, homeTeam, "right")}
     </div>
   `;
+}
+
+function renderLiveStatus(liveStatus) {
+  const state = liveStatus?.gameState ?? {};
+  const count = state.count ?? {};
+
+  return `
+    <div class="live-status-panel">
+      <div class="live-count">
+        <span>B ${escapeHtml(count.balls ?? "-")}</span>
+        <span>S ${escapeHtml(count.strikes ?? "-")}</span>
+        <span>O ${escapeHtml(count.outs ?? "-")}</span>
+      </div>
+      <div class="live-matchup">
+        ${renderLivePlayer("투수", liveStatus?.currentPitcher)}
+        ${renderLivePlayer("타자", liveStatus?.currentBatter)}
+      </div>
+    </div>
+  `;
+}
+
+function renderLivePlayer(label, player) {
+  const name = player?.playerName ?? "-";
+
+  return `
+    <div class="live-player">
+      ${renderLivePlayerPhoto(player)}
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(name)}</strong>
+    </div>
+  `;
+}
+
+function renderLivePlayerPhoto(player) {
+  const imageUrl = getLivePlayerImageUrl(player);
+  const name = player?.playerName ?? "";
+
+  if (!imageUrl) {
+    return `
+      <div class="live-player-photo empty-photo" aria-hidden="true">
+        <span></span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="live-player-photo image-photo" aria-hidden="true">
+      <img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(name)}" />
+    </div>
+  `;
+}
+
+function formatLiveInning(state) {
+  if (!state?.inning) {
+    return "경기중";
+  }
+
+  return `${state.inning}회${state.inningHalfName ?? ""}`;
+}
+
+function renderBaseDiamond(runners) {
+  const renderBase = (base, label) => {
+    const runner = runners?.[base];
+    const imageUrl = getLivePlayerImageUrl(runner);
+    const occupiedClass = runner?.occupied ? " occupied" : "";
+
+    return `
+      <span class="base ${base} ${occupiedClass}" title="${escapeAttribute(label)}">
+        ${runner?.occupied && imageUrl ? `<img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(runner.playerName ?? "")}" />` : ""}
+      </span>
+    `;
+  };
+
+  return `
+    <div class="base-diamond" aria-label="주자 상황">
+      ${renderBase("second", "2루")}
+      ${renderBase("third", "3루")}
+      ${renderBase("first", "1루")}
+      <span class="home-plate"></span>
+    </div>
+  `;
+}
+
+function getLivePlayerImageUrl(player) {
+  if (player?.profileImageUrl) {
+    return player.profileImageUrl;
+  }
+
+  return "";
 }
 
 function renderResultPitchers(game) {
@@ -709,9 +963,12 @@ function getCancelReason(cancelStatus) {
   return reasons[cancelStatus] ?? "경기취소";
 }
 
-function renderTeam(team) {
+function renderTeam(team, side = "") {
+  const teamClass = teamFallbackClass[team.key] ?? "";
+  const sideClass = side ? ` ${side}` : "";
+
   return `
-    <div class="team">
+    <div class="team ${teamClass}${sideClass}">
       ${renderLogo(team)}
       <div>
         <strong>${escapeHtml(team.name ?? "-")}</strong>
