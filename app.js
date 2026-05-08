@@ -77,7 +77,7 @@ function handleGameListClick(event) {
   }
 
   const card = event.target.closest("[data-game-id]");
-  if (card) {
+  if (card && card.dataset.canOpen === "true") {
     location.hash = `game=${encodeURIComponent(card.dataset.gameId)}`;
   }
 }
@@ -88,7 +88,7 @@ function handleGameListKeydown(event) {
   }
 
   const card = event.target.closest("[data-game-id]");
-  if (card) {
+  if (card && card.dataset.canOpen === "true") {
     event.preventDefault();
     location.hash = `game=${encodeURIComponent(card.dataset.gameId)}`;
   }
@@ -110,9 +110,15 @@ function renderGameCard(game) {
   const homePitcher = game.homeStartingPitcher ?? {};
   const status = getGameStatus(game);
   const isFinal = game.gameState === "FINAL";
+  const canOpenDetail = game.gameState === "SCHEDULED";
 
   return `
-    <article class="game-card ${isFinal ? "final-card" : ""}" data-game-id="${escapeAttribute(game.kboGameId)}" role="button" tabindex="0">
+    <article
+      class="game-card ${isFinal ? "final-card" : ""} ${canOpenDetail ? "is-openable" : "is-static"}"
+      data-game-id="${escapeAttribute(game.kboGameId)}"
+      data-can-open="${canOpenDetail ? "true" : "false"}"
+      ${canOpenDetail ? 'role="button" tabindex="0"' : ""}
+    >
       <div class="game-meta">
         <div class="meta-left">
           <span class="status-text ${status.className}">${escapeHtml(status.label)}</span>
