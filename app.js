@@ -2,6 +2,8 @@ const gameList = document.querySelector("#gameList");
 const isLocalServer = location.protocol.startsWith("http") && location.port === "5173";
 const apiBase = isLocalServer ? "" : "http://3.36.54.178:8000";
 let todayGames = [];
+let requestedGameDate = null;
+let loadedGameDate = null;
 const detailCache = new Map();
 const compareView = {
   team: "table",
@@ -41,12 +43,9 @@ gameList.addEventListener("keydown", handleGameListKeydown);
 
 async function init() {
   try {
-    const response = await fetch(`${apiBase}/api/v1/kbo/games/today`);
-    if (!response.ok) {
-      throw new Error(`API 응답 오류: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await fetchMostRecentGames();
+    requestedGameDate = data.requestedGameDate;
+    loadedGameDate = data.gameDate;
     todayGames = await hydrateLiveStatuses(data.games ?? []);
     route();
   } catch (error) {
@@ -109,11 +108,69 @@ function handleGameListKeydown(event) {
 
 function renderGames(games) {
   if (!games.length) {
-    gameList.innerHTML = `<article class="state-card">오늘 예정된 KBO 경기가 없습니다.</article>`;
+    gameList.innerHTML = `<article class="state-card">최근 경기 목록을 찾지 못했습니다.</article>`;
     return;
   }
 
-  gameList.innerHTML = games.map(renderGameCard).join("");
+  gameList.innerHTML = `${renderLoadedDateNotice()}${games.map(renderGameCard).join("")}`;
+}
+
+async function fetchMostRecentGames() {
+  const todayData = await fetchGamesByDate();
+  const requestedDate = todayData.gameDate;
+  const games = todayData.games ?? [];
+
+  if (games.length) {
+    return {
+      gameDate: todayData.gameDate,
+      requestedGameDate: requestedDate,
+      games,
+    };
+  }
+
+  let cursor = shiftDate(todayData.gameDate, 1);
+  for (let daysAhead = 1; daysAhead <= 370; daysAhead += 1) {
+    const data = await fetchGamesByDate(cursor);
+    const recentGames = data.games ?? [];
+
+    if (recentGames.length) {
+      return {
+        gameDate: data.gameDate,
+        requestedGameDate: requestedDate,
+        games: recentGames,
+      };
+    }
+
+    cursor = shiftDate(cursor, 1);
+  }
+
+  return {
+    gameDate: todayData.gameDate,
+    requestedGameDate: requestedDate,
+    games: [],
+  };
+}
+
+async function fetchGamesByDate(gameDate) {
+  const params = gameDate ? `?gameDate=${encodeURIComponent(gameDate)}` : "";
+  const response = await fetch(`${apiBase}/api/v1/kbo/games/today${params}`);
+  if (!response.ok) {
+    throw new Error(`API 응답 오류: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function renderLoadedDateNotice() {
+  if (!requestedGameDate || !loadedGameDate || requestedGameDate === loadedGameDate) {
+    return "";
+  }
+
+  return `
+    <h2 class="game-date-heading">
+      ${escapeHtml(formatKoreanDate(loadedGameDate))}
+    </h2>
+  `;
 }
 
 function renderGameCard(game) {
@@ -1041,6 +1098,34 @@ function formatStadium(stadium) {
     return "-";
   }
   return stadium.endsWith("야구장") || stadium.endsWith("돔") ? stadium : `${stadium}`;
+}
+
+function shiftDate(dateText, days) {
+  const date = parseDateText(dateText);
+  date.setDate(date.getDate() + days);
+  return formatDateParam(date);
+}
+
+function parseDateText(dateText) {
+  const [year, month, day] = dateText.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatDateParam(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatKoreanDate(dateText) {
+  const date = parseDateText(dateText);
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(date);
 }
 
 function renderError(error) {

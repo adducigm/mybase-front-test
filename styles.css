@@ -81,6 +81,14 @@ h1 {
   gap: 10px;
 }
 
+.game-date-heading {
+  margin: 2px 2px 0;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .state-card {
   display: grid;
   min-height: 120px;
