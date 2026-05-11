@@ -1,7 +1,6 @@
 const gameList = document.querySelector("#gameList");
 const isLocalServer = location.protocol.startsWith("http") && location.port === "5173";
 const apiBase = isLocalServer ? "" : "http://3.36.54.178:8000";
-const useMockLiveGames = true;
 let todayGames = [];
 let requestedGameDate = null;
 let loadedGameDate = null;
@@ -38,191 +37,6 @@ const teamColors = {
   NC: ["#5da0d2", "#123c66"],
 };
 
-const mockLiveGameData = {
-  requestedGameDate: "2026-05-11",
-  gameDate: "2026-05-11",
-  games: [
-    {
-      kboGameId: "mock-live-ssg-lg",
-      gameState: "LIVE",
-      stadium: "잠실",
-      gameTime: "18:30",
-      awayScore: 3,
-      homeScore: 4,
-      awayTeam: {
-        key: "SK",
-        name: "SSG",
-        rank: 4,
-        wins: 20,
-        draws: 1,
-        losses: 17,
-      },
-      homeTeam: {
-        key: "LG",
-        name: "LG",
-        rank: 2,
-        wins: 23,
-        draws: 0,
-        losses: 15,
-      },
-      liveStatus: {
-        gameState: {
-          inning: 7,
-          inningHalfName: "초",
-          awayScore: 5
-          ,
-          homeScore: 4,
-          count: {
-            balls: 2,
-            strikes: 1,
-            outs: 1,
-          },
-          runners: {
-            first: {
-              occupied: true,
-              playerName: "최지훈",
-              profileImageUrl:"https://6ptotvmi5753.edge.naverncp.com/KBO_IMAGE/person/middle/2026/56719.jpg"
-            },
-            second: {
-              occupied: false,
-            },
-            third: {
-              occupied: true,
-              playerName: "에레디아",
-            },
-          },
-        },
-        currentPitcher: {
-          playerName: "유영찬",
-        },
-        currentBatter: {
-          playerName: "최정",
-        },
-      },
-      liveDetail: {
-        scoreboard: {
-          lines: [
-            { team: "SSG", inningScores: { 1: 0, 2: 1, 3: 0, 4: 0, 5: 2, 6: 0, 7: 0, 8: 0, 9: 1, 10: 0, 11: 0, 12: "" }, totals: { R: 4, H: 9, E: 0, B: 3 } },
-            { team: "LG", inningScores: { 1: 2, 2: 0, 3: 1, 4: 0, 5: 0, 6: 1, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: "" }, totals: { R: 4, H: 10, E: 1, B: 4 } },
-          ],
-        },
-        liveText: [
-          {
-            inning: 7,
-            halves: [
-              {
-                inning: 7,
-                inningHalf: "T",
-                inningHalfName: "초",
-                teamName: "SSG",
-                batters: [
-                  { battingOrder: 3, name: "최정", events: [{ text: "좌익수 앞 안타", styleCode: "H" }] },
-                  { battingOrder: 4, name: "에레디아", events: [{ text: "3루 주자 홈인", styleCode: "R" }, { text: "중견수 희생플라이", styleCode: "O" }] },
-                ],
-              },
-            ],
-          },
-          {
-            inning: 6,
-            halves: [
-              {
-                inning: 6,
-                inningHalf: "B",
-                inningHalfName: "말",
-                teamName: "LG",
-                batters: [
-                  { battingOrder: 2, name: "문성주", events: [{ text: "우중간 2루타", styleCode: "H" }] },
-                  { battingOrder: 3, name: "오스틴", events: [{ text: "좌익수 앞 적시타", styleCode: "R" }] },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    },
-    {
-      kboGameId: "mock-live-nc-kt",
-      gameState: "LIVE",
-      stadium: "수원",
-      gameTime: "18:30",
-      awayScore: 1,
-      homeScore: 1,
-      awayTeam: {
-        key: "NC",
-        name: "NC",
-        rank: 7,
-        wins: 17,
-        draws: 1,
-        losses: 20,
-      },
-      homeTeam: {
-        key: "KT",
-        name: "KT",
-        rank: 6,
-        wins: 18,
-        draws: 2,
-        losses: 19,
-      },
-      liveStatus: {
-        gameState: {
-          inning: 4,
-          inningHalfName: "말",
-          awayScore: 1,
-          homeScore: 1,
-          count: {
-            balls: 1,
-            strikes: 2,
-            outs: 2,
-          },
-          runners: {
-            first: {
-              occupied: false,
-            },
-            second: {
-              occupied: true,
-              playerName: "강백호",
-            },
-            third: {
-              occupied: false,
-            },
-          },
-        },
-        currentPitcher: {
-          playerName: "하트",
-        },
-        currentBatter: {
-          playerName: "문상철",
-        },
-      },
-      liveDetail: {
-        scoreboard: {
-          lines: [
-            { team: "NC", inningScores: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: "" }, totals: { R: 1, H: 6, E: 0, B: 2 } },
-            { team: "KT", inningScores: { 1: 0, 2: 1, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: "" }, totals: { R: 1, H: 5, E: 0, B: 3 } },
-          ],
-        },
-        liveText: [
-          {
-            inning: 4,
-            halves: [
-              {
-                inning: 4,
-                inningHalf: "B",
-                inningHalfName: "말",
-                teamName: "KT",
-                batters: [
-                  { battingOrder: 5, name: "문상철", events: [{ text: "헛스윙 삼진", styleCode: "O" }] },
-                  { battingOrder: 6, name: "황재균", events: [{ text: "볼넷", styleCode: "B" }] },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    },
-  ],
-};
-
 init();
 window.addEventListener("hashchange", route);
 gameList.addEventListener("click", handleGameListClick);
@@ -230,10 +44,10 @@ gameList.addEventListener("keydown", handleGameListKeydown);
 
 async function init() {
   try {
-    const data = useMockLiveGames ? mockLiveGameData : await fetchMostRecentGames();
+    const data = await fetchMostRecentGames();
     requestedGameDate = data.requestedGameDate;
     loadedGameDate = data.gameDate;
-    todayGames = useMockLiveGames ? data.games ?? [] : await hydrateLiveStatuses(data.games ?? []);
+    todayGames = await hydrateLiveStatuses(data.games ?? []);
     route();
   } catch (error) {
     renderError(error);
@@ -261,7 +75,7 @@ function route() {
 }
 
 async function renderLiveGameDetail(game) {
-  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId) ?? game.liveDetail);
+  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId));
   focusLatestInningScore();
 
   if (!game.kboGameId) {
@@ -276,7 +90,7 @@ async function renderLiveGameDetail(game) {
       focusLatestInningScore();
     }
   } catch {
-    // Keep the current live detail view; scoreboard falls back to cached/mock data when available.
+    // Keep the current live detail view when live detail is temporarily unavailable.
   }
 }
 
@@ -343,7 +157,7 @@ function renderCachedLiveDetail() {
     return;
   }
 
-  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId) ?? game.liveDetail);
+  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId));
   focusLatestInningScore();
 }
 
