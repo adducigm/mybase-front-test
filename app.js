@@ -1,10 +1,12 @@
 const gameList = document.querySelector("#gameList");
 const isLocalServer = location.protocol.startsWith("http") && location.port === "5173";
 const apiBase = isLocalServer ? "" : "http://3.36.54.178:8000";
+const useMockLiveGames = true;
 let todayGames = [];
 let requestedGameDate = null;
 let loadedGameDate = null;
 const detailCache = new Map();
+const liveDetailCache = new Map();
 const compareView = {
   team: "table",
   pitcher: "table",
@@ -36,6 +38,191 @@ const teamColors = {
   NC: ["#5da0d2", "#123c66"],
 };
 
+const mockLiveGameData = {
+  requestedGameDate: "2026-05-11",
+  gameDate: "2026-05-11",
+  games: [
+    {
+      kboGameId: "mock-live-ssg-lg",
+      gameState: "LIVE",
+      stadium: "잠실",
+      gameTime: "18:30",
+      awayScore: 3,
+      homeScore: 4,
+      awayTeam: {
+        key: "SK",
+        name: "SSG",
+        rank: 4,
+        wins: 20,
+        draws: 1,
+        losses: 17,
+      },
+      homeTeam: {
+        key: "LG",
+        name: "LG",
+        rank: 2,
+        wins: 23,
+        draws: 0,
+        losses: 15,
+      },
+      liveStatus: {
+        gameState: {
+          inning: 7,
+          inningHalfName: "초",
+          awayScore: 5
+          ,
+          homeScore: 4,
+          count: {
+            balls: 2,
+            strikes: 1,
+            outs: 1,
+          },
+          runners: {
+            first: {
+              occupied: true,
+              playerName: "최지훈",
+              profileImageUrl:"https://6ptotvmi5753.edge.naverncp.com/KBO_IMAGE/person/middle/2026/56719.jpg"
+            },
+            second: {
+              occupied: false,
+            },
+            third: {
+              occupied: true,
+              playerName: "에레디아",
+            },
+          },
+        },
+        currentPitcher: {
+          playerName: "유영찬",
+        },
+        currentBatter: {
+          playerName: "최정",
+        },
+      },
+      liveDetail: {
+        scoreboard: {
+          lines: [
+            { team: "SSG", inningScores: { 1: 0, 2: 1, 3: 0, 4: 0, 5: 2, 6: 0, 7: 0, 8: 0, 9: 1, 10: 0, 11: 0, 12: "" }, totals: { R: 4, H: 9, E: 0, B: 3 } },
+            { team: "LG", inningScores: { 1: 2, 2: 0, 3: 1, 4: 0, 5: 0, 6: 1, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: "" }, totals: { R: 4, H: 10, E: 1, B: 4 } },
+          ],
+        },
+        liveText: [
+          {
+            inning: 7,
+            halves: [
+              {
+                inning: 7,
+                inningHalf: "T",
+                inningHalfName: "초",
+                teamName: "SSG",
+                batters: [
+                  { battingOrder: 3, name: "최정", events: [{ text: "좌익수 앞 안타", styleCode: "H" }] },
+                  { battingOrder: 4, name: "에레디아", events: [{ text: "3루 주자 홈인", styleCode: "R" }, { text: "중견수 희생플라이", styleCode: "O" }] },
+                ],
+              },
+            ],
+          },
+          {
+            inning: 6,
+            halves: [
+              {
+                inning: 6,
+                inningHalf: "B",
+                inningHalfName: "말",
+                teamName: "LG",
+                batters: [
+                  { battingOrder: 2, name: "문성주", events: [{ text: "우중간 2루타", styleCode: "H" }] },
+                  { battingOrder: 3, name: "오스틴", events: [{ text: "좌익수 앞 적시타", styleCode: "R" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      kboGameId: "mock-live-nc-kt",
+      gameState: "LIVE",
+      stadium: "수원",
+      gameTime: "18:30",
+      awayScore: 1,
+      homeScore: 1,
+      awayTeam: {
+        key: "NC",
+        name: "NC",
+        rank: 7,
+        wins: 17,
+        draws: 1,
+        losses: 20,
+      },
+      homeTeam: {
+        key: "KT",
+        name: "KT",
+        rank: 6,
+        wins: 18,
+        draws: 2,
+        losses: 19,
+      },
+      liveStatus: {
+        gameState: {
+          inning: 4,
+          inningHalfName: "말",
+          awayScore: 1,
+          homeScore: 1,
+          count: {
+            balls: 1,
+            strikes: 2,
+            outs: 2,
+          },
+          runners: {
+            first: {
+              occupied: false,
+            },
+            second: {
+              occupied: true,
+              playerName: "강백호",
+            },
+            third: {
+              occupied: false,
+            },
+          },
+        },
+        currentPitcher: {
+          playerName: "하트",
+        },
+        currentBatter: {
+          playerName: "문상철",
+        },
+      },
+      liveDetail: {
+        scoreboard: {
+          lines: [
+            { team: "NC", inningScores: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: "" }, totals: { R: 1, H: 6, E: 0, B: 2 } },
+            { team: "KT", inningScores: { 1: 0, 2: 1, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: "" }, totals: { R: 1, H: 5, E: 0, B: 3 } },
+          ],
+        },
+        liveText: [
+          {
+            inning: 4,
+            halves: [
+              {
+                inning: 4,
+                inningHalf: "B",
+                inningHalfName: "말",
+                teamName: "KT",
+                batters: [
+                  { battingOrder: 5, name: "문상철", events: [{ text: "헛스윙 삼진", styleCode: "O" }] },
+                  { battingOrder: 6, name: "황재균", events: [{ text: "볼넷", styleCode: "B" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+};
+
 init();
 window.addEventListener("hashchange", route);
 gameList.addEventListener("click", handleGameListClick);
@@ -43,10 +230,10 @@ gameList.addEventListener("keydown", handleGameListKeydown);
 
 async function init() {
   try {
-    const data = await fetchMostRecentGames();
+    const data = useMockLiveGames ? mockLiveGameData : await fetchMostRecentGames();
     requestedGameDate = data.requestedGameDate;
     loadedGameDate = data.gameDate;
-    todayGames = await hydrateLiveStatuses(data.games ?? []);
+    todayGames = useMockLiveGames ? data.games ?? [] : await hydrateLiveStatuses(data.games ?? []);
     route();
   } catch (error) {
     renderError(error);
@@ -56,13 +243,59 @@ async function init() {
 function route() {
   const gameId = getSelectedGameId();
   const game = todayGames.find((item) => item.kboGameId === gameId);
+  const isLiveDetail = game?.gameState === "LIVE";
+
+  document.body.classList.toggle("live-detail-mode", isLiveDetail);
 
   if (game) {
+    if (isLiveDetail) {
+      renderLiveGameDetail(game);
+      return;
+    }
+
     renderGameDetail(game);
     return;
   }
 
   renderGames(todayGames);
+}
+
+async function renderLiveGameDetail(game) {
+  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId) ?? game.liveDetail);
+  focusLatestInningScore();
+
+  if (!game.kboGameId) {
+    return;
+  }
+
+  try {
+    const detail = await fetchLiveDetail(game.kboGameId);
+    liveDetailCache.set(game.kboGameId, detail);
+    if (getSelectedGameId() === game.kboGameId) {
+      gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, detail);
+      focusLatestInningScore();
+    }
+  } catch {
+    // Keep the current live detail view; scoreboard falls back to cached/mock data when available.
+  }
+}
+
+function focusLatestInningScore() {
+  requestAnimationFrame(() => {
+    const inningScroll = gameList.querySelector(".inning-scroll");
+    if (inningScroll) {
+      inningScroll.scrollLeft = inningScroll.scrollWidth;
+    }
+  });
+}
+
+async function fetchLiveDetail(gameId) {
+  const response = await fetch(`${apiBase}/api/v1/kbo/games/${encodeURIComponent(gameId)}/live/detail`);
+  if (!response.ok) {
+    throw new Error(`라이브 상세 조회 실패: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 function getSelectedGameId() {
@@ -71,6 +304,14 @@ function getSelectedGameId() {
 }
 
 function handleGameListClick(event) {
+  const eventTab = event.target.closest("[data-live-event-inning]");
+  if (eventTab) {
+    event.preventDefault();
+    MyBaseLiveGameCard.selectEventInning(eventTab.dataset.liveEventInning);
+    renderCachedLiveDetail();
+    return;
+  }
+
   const toggleButton = event.target.closest("[data-toggle-view]");
   if (toggleButton) {
     event.preventDefault();
@@ -92,6 +333,18 @@ function handleGameListClick(event) {
   if (card && card.dataset.canOpen === "true") {
     location.hash = `game=${encodeURIComponent(card.dataset.gameId)}`;
   }
+}
+
+function renderCachedLiveDetail() {
+  const gameId = getSelectedGameId();
+  const game = todayGames.find((item) => item.kboGameId === gameId);
+  if (!game || game.gameState !== "LIVE") {
+    route();
+    return;
+  }
+
+  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId) ?? game.liveDetail);
+  focusLatestInningScore();
 }
 
 function handleGameListKeydown(event) {
@@ -185,7 +438,7 @@ function renderGameCard(game) {
   const cardStyle = canOpenDetail ? ` style="${getScheduledCardStyle(awayTeam, homeTeam)}"` : "";
 
   if (isLive) {
-    return renderLiveGameCard(game, awayTeam, homeTeam, status);
+    return MyBaseLiveGameCard.render(game);
   }
 
   return `
@@ -218,91 +471,6 @@ function renderGameCard(game) {
   `;
 }
 
-function renderLiveGameCard(game, awayTeam, homeTeam, status) {
-  const liveGame = applyLiveStatusToGame(game);
-  const state = game.liveStatus?.gameState ?? {};
-  const count = state.count ?? {};
-  const pitcher = game.liveStatus?.currentPitcher ?? null;
-  const batter = game.liveStatus?.currentBatter ?? null;
-
-  return `
-    <article class="game-card live-game-card is-static" data-game-id="${escapeAttribute(game.kboGameId)}" data-can-open="false">
-      <div class="live-game-top">
-        ${renderLiveTeamBadge(awayTeam, liveGame.awayScore, "away", getScoreResultClass(liveGame.awayScore, liveGame.homeScore))}
-        <div class="live-game-state">
-          <span class="status-text ${status.className}">${escapeHtml(status.label)}</span>
-          <strong>${escapeHtml(formatLiveInning(state))}</strong>
-          <small>${escapeHtml(formatStadium(game.stadium))} · ${escapeHtml(game.gameTime ?? "-")}</small>
-        </div>
-        ${renderLiveTeamBadge(homeTeam, liveGame.homeScore, "home", getScoreResultClass(liveGame.homeScore, liveGame.awayScore))}
-      </div>
-      <div class="live-ballpark">
-        <div class="field-wall"></div>
-        <div class="outfield"></div>
-        <div class="infield"></div>
-        <div class="base-path"></div>
-        ${renderLiveFieldBase("second", "2루", state.runners?.second)}
-        ${renderLiveFieldBase("third", "3루", state.runners?.third)}
-        ${renderLiveFieldBase("first", "1루", state.runners?.first)}
-        ${renderLiveFieldPlayer("pitcher", "", pitcher)}
-        ${renderLiveFieldPlayer("batter", "", batter)}
-        <div class="live-count-board">
-          ${renderCountLights("B", count.balls, 3)}
-          ${renderCountLights("S", count.strikes, 2)}
-          ${renderCountLights("O", count.outs, 2)}
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function renderCountLights(label, value, max) {
-  const count = Number.isFinite(Number(value)) ? Number(value) : 0;
-
-  return `
-    <div class="count-light-row">
-      <span>${escapeHtml(label)}</span>
-      <div>
-        ${Array.from({ length: max }, (_, index) => `<i class="${index < count ? "on" : ""}"></i>`).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function renderLiveTeamBadge(team, score, side, scoreClass = "") {
-  return `
-    <div class="live-team-badge ${side}">
-      ${renderLogo(team)}
-      <strong class="${scoreClass}">${escapeHtml(score ?? "-")}</strong>
-    </div>
-  `;
-}
-
-function renderLiveFieldPlayer(role, label, player) {
-  const imageUrl = getLivePlayerImageUrl(player);
-  const name = player?.playerName ?? "-";
-
-  return `
-    <div class="field-player field-${role}">
-      ${imageUrl ? `<img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(name)}" />` : '<span class="field-player-empty"></span>'}
-      ${label ? `<small>${escapeHtml(label)}</small>` : ""}
-      <strong>${escapeHtml(name)}</strong>
-    </div>
-  `;
-}
-
-function renderLiveFieldBase(base, label, runner) {
-  const imageUrl = getLivePlayerImageUrl(runner);
-  const occupiedClass = runner?.occupied ? " occupied" : "";
-  const name = runner?.playerName ?? label;
-
-  return `
-    <div class="field-base ${base}${occupiedClass}" title="${escapeAttribute(name)}">
-      ${runner?.occupied && imageUrl ? `<img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(name)}" />` : ""}
-    </div>
-  `;
-}
-
 async function hydrateLiveStatuses(games) {
   const liveGames = games.filter((game) => game.gameState === "LIVE" && game.kboGameId);
 
@@ -332,16 +500,6 @@ async function fetchLiveStatus(gameId) {
   } catch {
     return null;
   }
-}
-
-function applyLiveStatusToGame(game) {
-  const state = game.liveStatus?.gameState ?? {};
-
-  return {
-    ...game,
-    awayScore: state.awayScore ?? game.awayScore,
-    homeScore: state.homeScore ?? game.homeScore,
-  };
 }
 
 function getScheduledCardStyle(awayTeam, homeTeam) {
