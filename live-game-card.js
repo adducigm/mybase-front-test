@@ -77,7 +77,9 @@
 
     return `
       <article class="detail-page live-detail-page">
-        <button class="live-detail-back" type="button" data-action="back" aria-label="경기 목록으로 돌아가기">↩</button>
+        <button class="live-detail-back" type="button" data-action="back" aria-label="경기 목록으로 돌아가기">
+          ${renderBackIcon()}
+        </button>
         <section class="game-card scheduled-card live-game-card live-detail-card" style="${getLiveCardStyle(awayTeam, homeTeam)}">
           ${renderBroadcastHeader(game, liveGame, state, awayTeam, homeTeam)}
           ${renderInningScoreboard(detail?.scoreboard, awayTeam, homeTeam)}
@@ -136,6 +138,15 @@
           </div>
         </div>
       </div>
+    `;
+  }
+
+  function renderBackIcon() {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h10a6 6 0 0 1 0 12h-2" />
+      </svg>
     `;
   }
 

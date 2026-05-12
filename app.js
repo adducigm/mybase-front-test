@@ -8,6 +8,7 @@ let requestedGameDate = null;
 let loadedGameDate = null;
 const detailCache = new Map();
 const liveDetailCache = new Map();
+let scrollIdleTimer = null;
 const compareView = {
   team: "table",
   pitcher: "table",
@@ -43,6 +44,7 @@ const teamColors = {
 
 init();
 window.addEventListener("hashchange", route);
+window.addEventListener("scroll", handleWindowScroll, { passive: true });
 authButton.addEventListener("click", handleAuthButtonClick);
 gameList.addEventListener("click", handleGameListClick);
 gameList.addEventListener("keydown", handleGameListKeydown);
@@ -186,12 +188,25 @@ function hasAccessToken() {
 
 class AuthRequiredError extends Error {}
 
+function handleWindowScroll() {
+  if (!document.querySelector(".live-detail-back")) {
+    return;
+  }
+
+  document.body.classList.add("detail-back-hidden");
+  window.clearTimeout(scrollIdleTimer);
+  scrollIdleTimer = window.setTimeout(() => {
+    document.body.classList.remove("detail-back-hidden");
+  }, 180);
+}
+
 function route() {
   const gameId = getSelectedGameId();
   const game = todayGames.find((item) => item.kboGameId === gameId);
   const isLiveDetail = game?.gameState === "LIVE";
 
   document.body.classList.remove("login-mode");
+  document.body.classList.remove("detail-back-hidden");
   document.body.classList.toggle("live-detail-mode", isLiveDetail);
 
   if (game) {
@@ -673,7 +688,19 @@ function renderDetailView(game, awayTeam, homeTeam, awayPitcher, homePitcher, li
         ${renderPitcherCompareBody(awayPitcher, homePitcher)}
       </section>
       ${renderLineupSection(lineup, game)}
+      <button class="live-detail-back" type="button" data-action="back" aria-label="경기 목록으로 돌아가기">
+        ${renderBackIcon()}
+      </button>
     </article>
+  `;
+}
+
+function renderBackIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10a6 6 0 0 1 0 12h-2" />
+    </svg>
   `;
 }
 

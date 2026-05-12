@@ -348,6 +348,7 @@ h1 {
 .detail-page {
   display: grid;
   gap: 12px;
+  padding-bottom: 72px;
 }
 
 .compare-board {
@@ -1067,15 +1068,38 @@ h1 {
   width: 46px;
   height: 46px;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(20, 23, 29, 0.1);
   border-radius: 999px;
-  background: rgba(5, 9, 13, 0.66);
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 23px;
-  font-weight: 900;
-  line-height: 1;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(10px);
+  background: #ffffff;
+  box-shadow: none;
+  cursor: pointer;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  will-change: opacity, transform;
+}
+
+.detail-back-hidden .live-detail-back {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(14px) scale(0.96);
+}
+
+.live-detail-back svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+}
+
+.live-detail-back:focus-visible {
+  outline: 2px solid rgba(20, 106, 74, 0.35);
+  outline-offset: 3px;
 }
 
 .live-detail-page {
