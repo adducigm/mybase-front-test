@@ -40,6 +40,14 @@ button {
   padding: 2px 2px 14px;
 }
 
+.login-mode .top-bar {
+  display: none;
+}
+
+.login-mode .app-shell {
+  padding-top: 18px;
+}
+
 .live-detail-mode .app-shell {
   width: 100%;
   max-width: none;

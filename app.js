@@ -93,6 +93,7 @@ function renderAuthButton() {
 function renderLogin(result = {}) {
   const error = result?.error;
   const message = result?.message;
+  document.body.classList.add("login-mode");
 
   gameList.innerHTML = `
     <section class="login-panel" aria-label="로그인">
@@ -190,6 +191,7 @@ function route() {
   const game = todayGames.find((item) => item.kboGameId === gameId);
   const isLiveDetail = game?.gameState === "LIVE";
 
+  document.body.classList.remove("login-mode");
   document.body.classList.toggle("live-detail-mode", isLiveDetail);
 
   if (game) {
