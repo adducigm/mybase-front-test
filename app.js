@@ -7,6 +7,7 @@ let todayGames = [];
 let requestedGameDate = null;
 let loadedGameDate = null;
 const detailCache = new Map();
+const liveDetailCache = new Map();
 const compareView = {
   team: "table",
   pitcher: "table",
@@ -187,13 +188,59 @@ class AuthRequiredError extends Error {}
 function route() {
   const gameId = getSelectedGameId();
   const game = todayGames.find((item) => item.kboGameId === gameId);
+  const isLiveDetail = game?.gameState === "LIVE";
+
+  document.body.classList.toggle("live-detail-mode", isLiveDetail);
 
   if (game) {
+    if (isLiveDetail) {
+      renderLiveGameDetail(game);
+      return;
+    }
+
     renderGameDetail(game);
     return;
   }
 
   renderGames(todayGames);
+}
+
+async function renderLiveGameDetail(game) {
+  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId));
+  focusLatestInningScore();
+
+  if (!game.kboGameId) {
+    return;
+  }
+
+  try {
+    const detail = await fetchLiveDetail(game.kboGameId);
+    liveDetailCache.set(game.kboGameId, detail);
+    if (getSelectedGameId() === game.kboGameId) {
+      gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, detail);
+      focusLatestInningScore();
+    }
+  } catch {
+    // Keep the current live detail view when live detail is temporarily unavailable.
+  }
+}
+
+function focusLatestInningScore() {
+  requestAnimationFrame(() => {
+    const inningScroll = gameList.querySelector(".inning-scroll");
+    if (inningScroll) {
+      inningScroll.scrollLeft = inningScroll.scrollWidth;
+    }
+  });
+}
+
+async function fetchLiveDetail(gameId) {
+  const response = await requestApi(`/api/v1/kbo/games/${encodeURIComponent(gameId)}/live/detail`);
+  if (!response.ok) {
+    throw new Error(`라이브 상세 조회 실패: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 function getSelectedGameId() {
@@ -205,6 +252,14 @@ function handleGameListClick(event) {
   const loginButton = event.target.closest("[data-action='kakao-login']");
   if (loginButton) {
     startKakaoLogin();
+    return;
+  }
+
+  const eventTab = event.target.closest("[data-live-event-inning]");
+  if (eventTab) {
+    event.preventDefault();
+    MyBaseLiveGameCard.selectEventInning(eventTab.dataset.liveEventInning);
+    renderCachedLiveDetail();
     return;
   }
 
@@ -229,6 +284,18 @@ function handleGameListClick(event) {
   if (card && card.dataset.canOpen === "true") {
     location.hash = `game=${encodeURIComponent(card.dataset.gameId)}`;
   }
+}
+
+function renderCachedLiveDetail() {
+  const gameId = getSelectedGameId();
+  const game = todayGames.find((item) => item.kboGameId === gameId);
+  if (!game || game.gameState !== "LIVE") {
+    route();
+    return;
+  }
+
+  gameList.innerHTML = MyBaseLiveGameCard.renderDetail(game, liveDetailCache.get(game.kboGameId));
+  focusLatestInningScore();
 }
 
 function handleGameListKeydown(event) {
@@ -384,7 +451,7 @@ function renderGameCard(game) {
   const cardStyle = canOpenDetail ? ` style="${getScheduledCardStyle(awayTeam, homeTeam)}"` : "";
 
   if (isLive) {
-    return renderLiveGameCard(game, awayTeam, homeTeam, status);
+    return MyBaseLiveGameCard.render(game);
   }
 
   return `
@@ -414,91 +481,6 @@ function renderGameCard(game) {
           `
       }
     </article>
-  `;
-}
-
-function renderLiveGameCard(game, awayTeam, homeTeam, status) {
-  const liveGame = applyLiveStatusToGame(game);
-  const state = game.liveStatus?.gameState ?? {};
-  const count = state.count ?? {};
-  const pitcher = game.liveStatus?.currentPitcher ?? null;
-  const batter = game.liveStatus?.currentBatter ?? null;
-
-  return `
-    <article class="game-card live-game-card is-static" data-game-id="${escapeAttribute(game.kboGameId)}" data-can-open="false">
-      <div class="live-game-top">
-        ${renderLiveTeamBadge(awayTeam, liveGame.awayScore, "away", getScoreResultClass(liveGame.awayScore, liveGame.homeScore))}
-        <div class="live-game-state">
-          <span class="status-text ${status.className}">${escapeHtml(status.label)}</span>
-          <strong>${escapeHtml(formatLiveInning(state))}</strong>
-          <small>${escapeHtml(formatStadium(game.stadium))} · ${escapeHtml(game.gameTime ?? "-")}</small>
-        </div>
-        ${renderLiveTeamBadge(homeTeam, liveGame.homeScore, "home", getScoreResultClass(liveGame.homeScore, liveGame.awayScore))}
-      </div>
-      <div class="live-ballpark">
-        <div class="field-wall"></div>
-        <div class="outfield"></div>
-        <div class="infield"></div>
-        <div class="base-path"></div>
-        ${renderLiveFieldBase("second", "2루", state.runners?.second)}
-        ${renderLiveFieldBase("third", "3루", state.runners?.third)}
-        ${renderLiveFieldBase("first", "1루", state.runners?.first)}
-        ${renderLiveFieldPlayer("pitcher", "", pitcher)}
-        ${renderLiveFieldPlayer("batter", "", batter)}
-        <div class="live-count-board">
-          ${renderCountLights("B", count.balls, 3)}
-          ${renderCountLights("S", count.strikes, 2)}
-          ${renderCountLights("O", count.outs, 2)}
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function renderCountLights(label, value, max) {
-  const count = Number.isFinite(Number(value)) ? Number(value) : 0;
-
-  return `
-    <div class="count-light-row">
-      <span>${escapeHtml(label)}</span>
-      <div>
-        ${Array.from({ length: max }, (_, index) => `<i class="${index < count ? "on" : ""}"></i>`).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function renderLiveTeamBadge(team, score, side, scoreClass = "") {
-  return `
-    <div class="live-team-badge ${side}">
-      ${renderLogo(team)}
-      <strong class="${scoreClass}">${escapeHtml(score ?? "-")}</strong>
-    </div>
-  `;
-}
-
-function renderLiveFieldPlayer(role, label, player) {
-  const imageUrl = getLivePlayerImageUrl(player);
-  const name = player?.playerName ?? "-";
-
-  return `
-    <div class="field-player field-${role}">
-      ${imageUrl ? `<img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(name)}" />` : '<span class="field-player-empty"></span>'}
-      ${label ? `<small>${escapeHtml(label)}</small>` : ""}
-      <strong>${escapeHtml(name)}</strong>
-    </div>
-  `;
-}
-
-function renderLiveFieldBase(base, label, runner) {
-  const imageUrl = getLivePlayerImageUrl(runner);
-  const occupiedClass = runner?.occupied ? " occupied" : "";
-  const name = runner?.playerName ?? label;
-
-  return `
-    <div class="field-base ${base}${occupiedClass}" title="${escapeAttribute(name)}">
-      ${runner?.occupied && imageUrl ? `<img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(name)}" />` : ""}
-    </div>
   `;
 }
 
@@ -534,16 +516,6 @@ async function fetchLiveStatus(gameId) {
     }
     return null;
   }
-}
-
-function applyLiveStatusToGame(game) {
-  const state = game.liveStatus?.gameState ?? {};
-
-  return {
-    ...game,
-    awayScore: state.awayScore ?? game.awayScore,
-    homeScore: state.homeScore ?? game.homeScore,
-  };
 }
 
 function getScheduledCardStyle(awayTeam, homeTeam) {
