@@ -1,11 +1,14 @@
 const gameList = document.querySelector("#gameList");
 const authButton = document.querySelector("#authButton");
+const mainTabs = document.querySelector(".main-tabs");
 const isLocalServer = location.protocol.startsWith("http") && location.port === "5173";
 const apiBase = isLocalServer ? "" : "http://3.36.54.178:8000";
 const tokenStorageKey = "mybase.auth.tokens";
 let todayGames = [];
 let requestedGameDate = null;
 let loadedGameDate = null;
+let activeMainTab = "games";
+let teamStandings = null;
 const detailCache = new Map();
 const liveDetailCache = new Map();
 let scrollIdleTimer = null;
@@ -45,6 +48,7 @@ const teamColors = {
 init();
 window.addEventListener("hashchange", route);
 window.addEventListener("scroll", handleWindowScroll, { passive: true });
+mainTabs.addEventListener("click", handleMainTabClick);
 authButton.addEventListener("click", handleAuthButtonClick);
 gameList.addEventListener("click", handleGameListClick);
 gameList.addEventListener("keydown", handleGameListKeydown);
@@ -78,6 +82,8 @@ function handleAuthButtonClick() {
   if (hasAccessToken()) {
     clearAuthState();
     detailCache.clear();
+    liveDetailCache.clear();
+    teamStandings = null;
     todayGames = [];
     renderAuthButton();
     renderLogin({ message: "로그아웃되었습니다." });
@@ -90,6 +96,26 @@ function handleAuthButtonClick() {
 function renderAuthButton() {
   authButton.classList.toggle("is-logged-in", hasAccessToken());
   authButton.setAttribute("aria-label", hasAccessToken() ? "로그아웃" : "로그인");
+}
+
+function handleMainTabClick(event) {
+  const tab = event.target.closest("[data-main-tab]");
+  if (!tab) {
+    return;
+  }
+
+  activeMainTab = tab.dataset.mainTab;
+  history.pushState("", document.title, location.pathname + location.search);
+  renderMainTabs();
+  route();
+}
+
+function renderMainTabs() {
+  document.querySelectorAll("[data-main-tab]").forEach((tab) => {
+    const isActive = tab.dataset.mainTab === activeMainTab;
+    tab.classList.toggle("is-active", isActive);
+    tab.setAttribute("aria-current", isActive ? "page" : "false");
+  });
 }
 
 function renderLogin(result = {}) {
@@ -208,6 +234,7 @@ function route() {
   document.body.classList.remove("login-mode");
   document.body.classList.remove("detail-back-hidden");
   document.body.classList.toggle("live-detail-mode", isLiveDetail);
+  renderMainTabs();
 
   if (game) {
     if (isLiveDetail) {
@@ -216,6 +243,11 @@ function route() {
     }
 
     renderGameDetail(game);
+    return;
+  }
+
+  if (activeMainTab === "standings") {
+    renderTeamStandings();
     return;
   }
 
@@ -334,6 +366,109 @@ function renderGames(games) {
   }
 
   gameList.innerHTML = `${renderLoadedDateNotice()}${games.map(renderGameCard).join("")}`;
+}
+
+async function renderTeamStandings() {
+  gameList.innerHTML = `<article class="state-card">팀 순위를 불러오는 중입니다.</article>`;
+
+  try {
+    const teams = await fetchTeamStandings();
+    gameList.innerHTML = `
+      <section class="standings-list" aria-label="팀 순위">
+        ${renderStandingsHeader()}
+        ${teams.map(renderStandingRow).join("")}
+      </section>
+    `;
+  } catch (error) {
+    if (error instanceof AuthRequiredError) {
+      renderLogin({ error: "로그인이 만료되었습니다. 다시 로그인해 주세요." });
+      return;
+    }
+
+    gameList.innerHTML = `
+      <article class="state-card error">
+        팀 순위를 불러오지 못했습니다.
+        <small>${escapeHtml(error.message)}</small>
+      </article>
+    `;
+  }
+}
+
+function renderStandingsHeader() {
+  return `
+    <div class="standings-header" aria-hidden="true">
+      <span>순위</span>
+      <span>팀명</span>
+      <span>승</span>
+      <span>무</span>
+      <span>패</span>
+      <span>연속</span>
+      <span>게임차</span>
+    </div>
+  `;
+}
+
+async function fetchTeamStandings() {
+  if (teamStandings) {
+    return teamStandings;
+  }
+
+  const response = await requestApi("/api/v1/kbo/teams");
+  if (!response.ok) {
+    throw new Error(`팀 순위 조회 실패: ${response.status}`);
+  }
+
+  const data = await response.json();
+  teamStandings = (data.teams ?? []).sort(compareTeamStanding);
+  return teamStandings;
+}
+
+function compareTeamStanding(left, right) {
+  const leftRank = Number(left.rank);
+  const rightRank = Number(right.rank);
+  if (Number.isFinite(leftRank) && Number.isFinite(rightRank)) {
+    return leftRank - rightRank;
+  }
+  if (Number.isFinite(leftRank)) {
+    return -1;
+  }
+  if (Number.isFinite(rightRank)) {
+    return 1;
+  }
+  return String(left.name ?? "").localeCompare(String(right.name ?? ""), "ko");
+}
+
+function renderStandingRow(team) {
+  return `
+    <article class="standing-row">
+      <div class="standing-rank">${escapeHtml(team.rank ?? "-")}</div>
+      <div class="standing-team">
+        <strong>${escapeHtml(team.name ?? "-")}</strong>
+      </div>
+      <div class="standing-stat">${escapeHtml(team.wins ?? "-")}</div>
+      <div class="standing-stat">${escapeHtml(team.draws ?? "-")}</div>
+      <div class="standing-stat">${escapeHtml(team.losses ?? "-")}</div>
+      <div class="standing-streak">
+        <strong>${escapeHtml(team.streak ?? "-")}</strong>
+      </div>
+      <div class="standing-rate">
+        <strong>${escapeHtml(formatGamesBehind(team.gamesBehind))}</strong>
+      </div>
+    </article>
+  `;
+}
+
+function formatGamesBehind(value) {
+  if (value == null || value === "") {
+    return "-";
+  }
+
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return value;
+  }
+
+  return number === 0 ? "-" : number.toFixed(1);
 }
 
 async function fetchMostRecentGames() {

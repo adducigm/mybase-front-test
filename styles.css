@@ -34,10 +34,37 @@ button {
 }
 
 .top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: start;
+  gap: 12px;
   padding: 2px 2px 14px;
+}
+
+.main-tabs {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.main-tab {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #a2a9b2;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.main-tab.is-active {
+  color: var(--ink);
+  font-size: 30px;
 }
 
 .login-mode .top-bar {
@@ -121,6 +148,97 @@ h1 {
 .game-list {
   display: grid;
   gap: 10px;
+}
+
+.standings-list {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #e1e6eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.standings-header,
+.standing-row {
+  display: grid;
+  grid-template-columns: 28px minmax(96px, 1fr) 28px 28px 28px 42px 42px;
+  align-items: center;
+  gap: 6px;
+}
+
+.standings-header {
+  min-height: 34px;
+  padding: 0 9px;
+  border-bottom: 1px solid #eef1f3;
+  background: #fbfcfd;
+}
+
+.standings-header span {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  overflow: hidden;
+  color: #8a929b;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standing-row {
+  min-height: 54px;
+  padding: 9px;
+  background: #ffffff;
+}
+
+.standing-row + .standing-row {
+  border-top: 1px solid #eef1f3;
+}
+
+.standing-rank {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+}
+
+.standing-team {
+  min-width: 0;
+  text-align: center;
+}
+
+.standing-team strong,
+.standing-team span {
+  display: block;
+  overflow: hidden;
+}
+
+.standing-team strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.standing-stat,
+.standing-streak,
+.standing-rate {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.standing-stat,
+.standing-streak strong,
+.standing-rate strong {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .game-date-heading {
