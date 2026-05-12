@@ -60,20 +60,31 @@ h1 {
 
 .icon-button::before {
   width: 15px;
-  height: 17px;
+  height: 15px;
   border: 2px solid var(--ink);
-  border-bottom: 0;
-  border-radius: 12px 12px 5px 5px;
+  border-radius: 999px;
   content: "";
 }
 
 .icon-button span {
   position: absolute;
-  bottom: 10px;
-  width: 8px;
-  height: 2px;
-  border-radius: 99px;
+  bottom: 9px;
+  width: 18px;
+  height: 9px;
+  border-radius: 99px 99px 4px 4px;
   background: var(--ink);
+}
+
+.icon-button.is-logged-in::after {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: var(--accent);
+  content: "";
 }
 
 .game-list {
@@ -108,6 +119,116 @@ h1 {
   margin-top: 8px;
   color: #c24747;
   font-size: 12px;
+}
+
+.login-panel {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 22px;
+  min-height: calc(100vh - 110px);
+  padding: 36px 22px 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(25, 35, 48, 0.05);
+}
+
+.login-brand {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.login-logo {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  place-items: center;
+  border-radius: 20px;
+  background: #0f6b49;
+  box-shadow: 0 10px 20px rgba(15, 107, 73, 0.2);
+}
+
+.login-logo span {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border: 3px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: inset 8px 0 0 rgba(255, 255, 255, 0.18);
+}
+
+.login-brand h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.login-brand p {
+  max-width: 280px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+.kakao-login-button {
+  display: inline-grid;
+  grid-template-columns: 20px minmax(0, auto);
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: min(100%, 300px);
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  background: #fee500;
+  color: #191919;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.kakao-login-button span {
+  position: relative;
+  width: 18px;
+  height: 16px;
+  border-radius: 50%;
+  background: #191919;
+}
+
+.kakao-login-button span::after {
+  position: absolute;
+  left: 2px;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  background: #191919;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  content: "";
+}
+
+.login-message,
+.login-error {
+  display: block;
+  max-width: 300px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.login-message {
+  color: var(--accent-dark);
+}
+
+.login-error {
+  color: #c24747;
 }
 
 .game-card {

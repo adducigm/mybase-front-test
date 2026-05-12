@@ -18,7 +18,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const pathname = req.url === "/" ? "/index.html" : req.url.split("?")[0];
+  const requestPath = req.url.split("?")[0];
+  const pathname = requestPath === "/" ? "/index.html" : requestPath;
   const filePath = path.join(root, pathname);
 
   if (!filePath.startsWith(root)) {

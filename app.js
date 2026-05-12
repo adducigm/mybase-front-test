@@ -1,6 +1,8 @@
 const gameList = document.querySelector("#gameList");
+const authButton = document.querySelector("#authButton");
 const isLocalServer = location.protocol.startsWith("http") && location.port === "5173";
 const apiBase = isLocalServer ? "" : "http://3.36.54.178:8000";
+const tokenStorageKey = "mybase.auth.tokens";
 let todayGames = [];
 let requestedGameDate = null;
 let loadedGameDate = null;
@@ -9,6 +11,8 @@ const compareView = {
   team: "table",
   pitcher: "table",
 };
+
+const authState = loadAuthState();
 
 const teamFallbackClass = {
   HT: "kia",
@@ -38,10 +42,19 @@ const teamColors = {
 
 init();
 window.addEventListener("hashchange", route);
+authButton.addEventListener("click", handleAuthButtonClick);
 gameList.addEventListener("click", handleGameListClick);
 gameList.addEventListener("keydown", handleGameListKeydown);
 
 async function init() {
+  const redirectResult = consumeAuthRedirect();
+  renderAuthButton();
+
+  if (!hasAccessToken()) {
+    renderLogin(redirectResult);
+    return;
+  }
+
   try {
     const data = await fetchMostRecentGames();
     requestedGameDate = data.requestedGameDate;
@@ -49,9 +62,127 @@ async function init() {
     todayGames = await hydrateLiveStatuses(data.games ?? []);
     route();
   } catch (error) {
+    if (error instanceof AuthRequiredError) {
+      renderLogin({ error: "로그인이 만료되었습니다. 다시 로그인해 주세요." });
+      return;
+    }
+
     renderError(error);
   }
 }
+
+function handleAuthButtonClick() {
+  if (hasAccessToken()) {
+    clearAuthState();
+    detailCache.clear();
+    todayGames = [];
+    renderAuthButton();
+    renderLogin({ message: "로그아웃되었습니다." });
+    return;
+  }
+
+  startKakaoLogin();
+}
+
+function renderAuthButton() {
+  authButton.classList.toggle("is-logged-in", hasAccessToken());
+  authButton.setAttribute("aria-label", hasAccessToken() ? "로그아웃" : "로그인");
+}
+
+function renderLogin(result = {}) {
+  const error = result?.error;
+  const message = result?.message;
+
+  gameList.innerHTML = `
+    <section class="login-panel" aria-label="로그인">
+      <div class="login-brand">
+        <div class="login-logo" aria-hidden="true">
+          <span></span>
+        </div>
+        <h2>MyBase</h2>
+        <p>오늘의 경기, 선발 매치업, 팀 정보를 한 번에 확인하세요.</p>
+      </div>
+      <button class="kakao-login-button" type="button" data-action="kakao-login">
+        <span aria-hidden="true"></span>
+        카카오로 계속하기
+      </button>
+      ${message ? `<small class="login-message">${escapeHtml(message)}</small>` : ""}
+      ${error ? `<small class="login-error">${escapeHtml(error)}</small>` : ""}
+    </section>
+  `;
+}
+
+function startKakaoLogin() {
+  const state = encodeURIComponent(createLoginState());
+  window.location.href = `${apiBase}/api/v1/auth/kakao/login?state=${state}`;
+}
+
+function createLoginState() {
+  return JSON.stringify({
+    from: location.pathname,
+    time: Date.now(),
+  });
+}
+
+function consumeAuthRedirect() {
+  const params = new URLSearchParams(location.search);
+  const error = params.get("error");
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+
+  if (!error && !accessToken && !refreshToken) {
+    return {};
+  }
+
+  const cleanUrl = `${location.pathname}${location.hash}`;
+  history.replaceState("", document.title, cleanUrl);
+
+  if (error) {
+    clearAuthState();
+    return { error };
+  }
+
+  if (!accessToken || !refreshToken) {
+    clearAuthState();
+    return { error: "토큰 응답이 올바르지 않습니다. 다시 로그인해 주세요." };
+  }
+
+  saveAuthState({
+    accessToken,
+    refreshToken,
+    tokenType: params.get("token_type") ?? "bearer",
+    expiresIn: Number(params.get("expires_in") ?? 0),
+    userId: params.get("user_id") ?? "",
+    issuedAt: Date.now(),
+  });
+  renderAuthButton();
+  return { message: "로그인되었습니다." };
+}
+
+function loadAuthState() {
+  try {
+    const stored = localStorage.getItem(tokenStorageKey);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAuthState(nextState) {
+  Object.assign(authState, nextState);
+  localStorage.setItem(tokenStorageKey, JSON.stringify(authState));
+}
+
+function clearAuthState() {
+  Object.keys(authState).forEach((key) => delete authState[key]);
+  localStorage.removeItem(tokenStorageKey);
+}
+
+function hasAccessToken() {
+  return Boolean(authState.accessToken);
+}
+
+class AuthRequiredError extends Error {}
 
 function route() {
   const gameId = getSelectedGameId();
@@ -71,6 +202,12 @@ function getSelectedGameId() {
 }
 
 function handleGameListClick(event) {
+  const loginButton = event.target.closest("[data-action='kakao-login']");
+  if (loginButton) {
+    startKakaoLogin();
+    return;
+  }
+
   const toggleButton = event.target.closest("[data-toggle-view]");
   if (toggleButton) {
     event.preventDefault();
@@ -151,9 +288,71 @@ async function fetchMostRecentGames() {
   };
 }
 
+async function requestApi(path, options = {}, retryOnUnauthorized = true) {
+  const headers = new Headers(options.headers ?? {});
+  if (authState.accessToken) {
+    headers.set("Authorization", `Bearer ${authState.accessToken}`);
+  }
+
+  const response = await fetch(`${apiBase}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401 && retryOnUnauthorized && authState.refreshToken) {
+    const reissued = await reissueTokens();
+    if (reissued) {
+      return requestApi(path, options, false);
+    }
+  }
+
+  if (response.status === 401) {
+    clearAuthState();
+    renderAuthButton();
+    throw new AuthRequiredError("Authentication is required.");
+  }
+
+  return response;
+}
+
+async function reissueTokens() {
+  try {
+    const response = await fetch(`${apiBase}/api/v1/auth/token/reissue`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        refreshToken: authState.refreshToken,
+      }),
+    });
+
+    if (!response.ok) {
+      clearAuthState();
+      renderAuthButton();
+      return false;
+    }
+
+    const token = await response.json();
+    saveAuthState({
+      accessToken: token.accessToken,
+      refreshToken: token.refreshToken,
+      tokenType: token.tokenType ?? "bearer",
+      expiresIn: token.expiresIn,
+      issuedAt: Date.now(),
+    });
+    renderAuthButton();
+    return true;
+  } catch {
+    clearAuthState();
+    renderAuthButton();
+    return false;
+  }
+}
+
 async function fetchGamesByDate(gameDate) {
   const params = gameDate ? `?gameDate=${encodeURIComponent(gameDate)}` : "";
-  const response = await fetch(`${apiBase}/api/v1/kbo/games/today${params}`);
+  const response = await requestApi(`/api/v1/kbo/games/today${params}`);
   if (!response.ok) {
     throw new Error(`API 응답 오류: ${response.status}`);
   }
@@ -323,13 +522,16 @@ async function hydrateLiveStatuses(games) {
 
 async function fetchLiveStatus(gameId) {
   try {
-    const response = await fetch(`${apiBase}/api/v1/kbo/games/${encodeURIComponent(gameId)}/live/status`);
+    const response = await requestApi(`/api/v1/kbo/games/${encodeURIComponent(gameId)}/live/status`);
     if (!response.ok) {
       return null;
     }
 
     return response.json();
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthRequiredError) {
+      throw error;
+    }
     return null;
   }
 }
@@ -427,7 +629,7 @@ async function fetchTeam(teamKey) {
     throw new Error("팀 key가 없습니다.");
   }
 
-  const response = await fetch(`${apiBase}/api/v1/kbo/teams/${encodeURIComponent(teamKey)}`);
+  const response = await requestApi(`/api/v1/kbo/teams/${encodeURIComponent(teamKey)}`);
   if (!response.ok) {
     throw new Error(`${teamKey} 팀 조회 실패: ${response.status}`);
   }
@@ -441,13 +643,16 @@ async function fetchPitcherDetail(summary) {
   }
 
   try {
-    const response = await fetch(`${apiBase}/api/v1/kbo/pitchers/${encodeURIComponent(summary.key)}`);
+    const response = await requestApi(`/api/v1/kbo/pitchers/${encodeURIComponent(summary.key)}`);
     if (!response.ok) {
       return summary;
     }
 
     return response.json();
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthRequiredError) {
+      throw error;
+    }
     return summary;
   }
 }
@@ -458,13 +663,16 @@ async function fetchLineup(gameId) {
   }
 
   try {
-    const response = await fetch(`${apiBase}/api/v1/kbo/games/${encodeURIComponent(gameId)}/lineup`);
+    const response = await requestApi(`/api/v1/kbo/games/${encodeURIComponent(gameId)}/lineup`);
     if (!response.ok) {
       return null;
     }
 
     return response.json();
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthRequiredError) {
+      throw error;
+    }
     return null;
   }
 }
